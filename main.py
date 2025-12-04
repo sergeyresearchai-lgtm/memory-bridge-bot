@@ -2,7 +2,7 @@ import os
 import json
 import telebot
 from datetime import datetime
-from deepseek import DeepSeek
+from openai import OpenAI
 
 # ====================== НАСТРОЙКИ ======================
 TELEGRAM_TOKEN = os.environ.get('BOT_TOKEN')
@@ -13,7 +13,10 @@ DEFAULT_LANGUAGE = 'en'
 
 # Инициализация
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-ai_client = DeepSeek(api_key=DEEPSEEK_API_KEY)
+ai_client = OpenAI(
+    api_key=DEEPSEEK_API_KEY,
+    base_url="https://api.deepseek.com"  # Важно!
+)
 
 # Папка для памяти
 MEMORIES_DIR = "memories"
