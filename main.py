@@ -15,7 +15,7 @@ DEFAULT_LANGUAGE = 'en'
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 ai_client = OpenAI(
     api_key=DEEPSEEK_API_KEY,
-    base_url="https://api.deepseek.com"  # Важно!
+    base_url="https://api.deepseek.com"
 )
 
 # Папка для памяти
