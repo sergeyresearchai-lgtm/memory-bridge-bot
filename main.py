@@ -3,12 +3,14 @@ import json
 import telebot
 from datetime import datetime
 from openai import OpenAI
+from flask import Flask, request
 
 # ====================== НАСТРОЙКИ ======================
 TELEGRAM_TOKEN = os.environ.get('BOT_TOKEN')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY')
 SUPPORTED_LANGUAGES = ['en', 'ru']  # Английский, Русский
 DEFAULT_LANGUAGE = 'en'
+RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', '')
 # ======================================================
 
 # Инициализация
@@ -17,6 +19,9 @@ ai_client = OpenAI(
     api_key=DEEPSEEK_API_KEY,
     base_url="https://api.deepseek.com"
 )
+
+# Flask приложение для webhook
+app = Flask(__name__)
 
 # Папка для памяти
 MEMORIES_DIR = "memories"
@@ -159,8 +164,32 @@ def handle_message(message):
         }
         bot.reply_to(message, error_msg.get(user_lang, error_msg['en']))
 
+# ====================== WEBHOOK РЕЖИМ ======================
+@app.route('/')
+def index():
+    return "Memory Bridge Bot is running!"
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return ''
+    else:
+        return 'Bad request', 400
+
 # ====================== ЗАПУСК ======================
 if __name__ == '__main__':
-    print("🚀 Memory Bridge Bot запущен!")
-    print(f"🌐 Поддерживаемые языки: {SUPPORTED_LANGUAGES}")
-    bot.polling()
+    # На Render используем webhook, локально — polling
+    if RENDER_EXTERNAL_URL:
+        # Настраиваем webhook на Render
+        bot.remove_webhook()
+        bot.set_webhook(url=f"{RENDER_EXTERNAL_URL}/webhook")
+        print(f"🚀 Webhook настроен на {RENDER_EXTERNAL_URL}/webhook")
+        app.run(host='0.0.0.0', port=10000)
+    else:
+        # Локальный запуск (для отладки)
+        print("🚀 Memory Bridge Bot запущен в режиме polling!")
+        print(f"🌐 Поддерживаемые языки: {SUPPORTED_LANGUAGES}")
+        bot.polling(none_stop=True)
