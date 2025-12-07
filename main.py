@@ -7,7 +7,7 @@ from flask import Flask, request
 
 # ====================== НАСТРОЙКИ ======================
 TELEGRAM_TOKEN = os.environ.get('BOT_TOKEN')
-DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY')
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 SUPPORTED_LANGUAGES = ['en', 'ru']  # Английский, Русский
 DEFAULT_LANGUAGE = 'en'
 RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', '')
@@ -16,8 +16,8 @@ RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', '')
 # Инициализация
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 ai_client = OpenAI(
-    api_key=DEEPSEEK_API_KEY,
-    base_url="https://api.deepseek.com"
+    api_key=OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1"
 )
 
 # Flask приложение для webhook
@@ -141,7 +141,7 @@ def handle_message(message):
     try:
         # Отправляем запрос в DeepSeek
         response = ai_client.chat.completions.create(
-            model="deepseek-chat",
+            model="meta-llama/llama-3.3-70b-instruct:free",
             messages=[{"role": "user", "content": system_prompt}],
             max_tokens=500,
             temperature=0.7
