@@ -5,6 +5,17 @@ from datetime import datetime
 from openai import OpenAI
 from flask import Flask, request
 
+# ====================== ДЕТЕКТОР ЯЗЫКА ======================
+def detect_language(text):
+    """
+    Простой детектор языка: если есть кириллица - русский, иначе английский.
+    """
+    # Проверяем, есть ли в тексте кириллические символы
+    if any('\u0400' <= char <= '\u04FF' for char in text):
+        return 'ru'
+    else:
+        return 'en'
+        
 # ====================== НАСТРОЙКИ ======================
 TELEGRAM_TOKEN = os.environ.get('BOT_TOKEN')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
@@ -106,7 +117,10 @@ def send_welcome(message):
     memory = load_memory(user_id)
     
     # Определяем язык пользователя
-    user_lang = message.from_user.language_code or DEFAULT_LANGUAGE
+    if message.from_user.language_code and message.from_user.language_code in SUPPORTED_LANGUAGES:
+        user_lang = message.from_user.language_code
+    else:
+        user_lang = detect_language(message.text) if message.text else DEFAULT_LANGUAGE
     if user_lang not in SUPPORTED_LANGUAGES:
         user_lang = DEFAULT_LANGUAGE
     
@@ -125,7 +139,10 @@ def handle_message(message):
     
     # Загружаем память
     memory = load_memory(user_id)
-    user_lang = memory.get('language', DEFAULT_LANGUAGE)
+    # Определяем язык текущего сообщения, а не берём из памяти
+    user_lang = detect_language(user_text)
+    # Но сохраняем его в память для консистентности
+    memory['language'] = user_lang
     
     # Обновляем память
     update_memory_history(memory, "user", user_text)
@@ -139,30 +156,41 @@ def handle_message(message):
     )
     
     try:
-        # Отправляем запрос в DeepSeek
-        response = ai_client.chat.completions.create(
-            model="meta-llama/llama-3.3-70b-instruct:free",
-            messages=[{"role": "user", "content": system_prompt}],
-            max_tokens=500,
-            temperature=0.7
-        )
-        
-        ai_response = response.choices[0].message.content.strip()
-        
+        # Отправляем запрос с повтором при ошибке
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                response = ai_client.chat.completions.create(
+                    model="meta-llama/llama-3.3-70b-instruct:free",
+                    messages=[{"role": "user", "content": system_prompt}],
+                    max_tokens=500,
+                    temperature=0.7
+                )
+                ai_response = response.choices[0].message.content.strip()
+                break  # Успешно, выходим из цикла повторов
+            except Exception as api_error:
+                if attempt == max_retries - 1:  # Последняя попытка
+                    raise api_error  # Пробрасываем ошибку во внешний except
+                # Ждём немного перед повторной попыткой
+                import time
+                time.sleep(1)
+    
         # Сохраняем ответ в память
         update_memory_history(memory, "assistant", ai_response)
         save_memory(user_id, memory)
-        
+    
         # Отправляем ответ пользователю
         bot.reply_to(message, ai_response)
-        
+    
     except Exception as e:
-        # Обработка ошибок
+        # Обработка ошибок (если все попытки не удались)
         error_msg = {
             'en': "I apologize, but I'm having trouble connecting to my memory. Please try again in a moment.",
             'ru': "Извини, у меня временные трудности с доступом к памяти. Попробуй ещё раз через минуту."
         }
         bot.reply_to(message, error_msg.get(user_lang, error_msg['en']))
+        # Логируем ошибку для отладки
+        print(f"Error after {max_retries} retries: {e}")
 
 # ====================== WEBHOOK РЕЖИМ ======================
 @app.route('/')
