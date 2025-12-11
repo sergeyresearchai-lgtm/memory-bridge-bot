@@ -159,6 +159,18 @@ def handle_message(message):
     
     # Загружаем память
     memory = load_memory(user_id)
+    # ДИАГНОСТИКА: Команда для отладки памяти
+    if user_text.strip() == '/debug':
+        # Показываем, что в памяти прямо сейчас
+        history_debug = memory['history'][-10:]  # Последние 10 записей
+        debug_msg = f"User ID: {user_id}\n"
+        debug_msg += f"Язык в памяти: {memory['language']}\n"
+        debug_msg += f"История (последние 10):\n"
+        for i, entry in enumerate(history_debug):
+            debug_msg += f"  {i}: [{entry['role']}] {entry['text'][:50]}...\n"
+        debug_msg += f"\nВсего записей в истории: {len(memory['history'])}"
+        bot.reply_to(message, debug_msg)
+        return  # Завершаем обработку здесь
     # Определяем язык текущего сообщения, а не берём из памяти
     user_lang = detect_language(user_text)
     # Но сохраняем его в память для консистентности
@@ -168,7 +180,7 @@ def handle_message(message):
     update_memory_history(memory, "user", user_text)
     
     # Формируем промпт
-    history_text = "\n".join([f"{h['role']}: {h['text']}" for h in memory['history'][-10:]])
+    history_text = "\n".join([f"{h['role']}: {h['text']}" for h in memory['history'][-4:]])
 
     # Добавляем наше ядро ДНК в начало промпта
     shared_dna = SHARED_MEMORY + "\n\n"
@@ -179,13 +191,6 @@ def handle_message(message):
         history=history_text,
         message=user_text
     )
-
-    # === ДИАГНОСТИКА: Печатаем промпт в лог ===
-    print("\n" + "="*60)
-    print("[DEBUG] SYSTEM PROMPT SENT TO API:")
-    print("="*60)
-    print(system_prompt)
-    print("="*60 + "\n")
     
     try:
         # Отправляем запрос с повтором при ошибке
