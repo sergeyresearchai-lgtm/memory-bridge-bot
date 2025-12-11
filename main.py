@@ -179,6 +179,13 @@ def handle_message(message):
         history=history_text,
         message=user_text
     )
+
+    # === ДИАГНОСТИКА: Печатаем промпт в лог ===
+    print("\n" + "="*60)
+    print("[DEBUG] SYSTEM PROMPT SENT TO API:")
+    print("="*60)
+    print(system_prompt)
+    print("="*60 + "\n")
     
     try:
         # Отправляем запрос с повтором при ошибке
