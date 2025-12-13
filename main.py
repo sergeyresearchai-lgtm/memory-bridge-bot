@@ -180,7 +180,7 @@ def handle_message(message):
     update_memory_history(memory, "user", user_text)
     
     # Формируем промпт
-    history_text = "\n".join([f"{h['role']}: {h['text']}" for h in memory['history'][-50:]])
+    history_text = "\n".join([f"{h['role']}: {h['text']}" for h in memory['history'][-20:]])
 
     # Добавляем наше ядро ДНК в начало промпта
     shared_dna = SHARED_MEMORY + "\n\n"
