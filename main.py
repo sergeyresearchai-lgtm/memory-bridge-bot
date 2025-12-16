@@ -4,6 +4,7 @@ import telebot
 from datetime import datetime
 from openai import OpenAI
 from flask import Flask, request
+from vector_memory_qdrant import VectorMemoryQdrant
 
 # ====================== ДЕТЕКТОР ЯЗЫКА ======================
 def detect_language(text):
@@ -30,6 +31,8 @@ ai_client = OpenAI(
     api_key=OPENROUTER_API_KEY,
     base_url="https://openrouter.ai/api/v1"
 )
+# Инициализация векторной памяти
+VECTOR_MEMORY = VectorMemoryQdrant(storage_path="./qdrant_storage")
 
 # Flask приложение для webhook
 app = Flask(__name__)
