@@ -218,6 +218,12 @@ def handle_message(message):
         # Сохраняем ответ в память
         update_memory_history(memory, "assistant", ai_response)
         save_memory(user_id, memory)
+
+        # Сохраняем ответ в ВЕКТОРНУЮ ПАМЯТЬ
+        try:
+            VECTOR_MEMORY.add_memory(user_id=str(user_id), role="assistant", text=ai_response)
+        except Exception as e:
+            print(f"[VectorMemory] Ошибка при сохранении ответа: {e}")
     
         # Отправляем ответ пользователю
         bot.reply_to(message, ai_response)
