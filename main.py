@@ -156,6 +156,7 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
+    print(f"[DEBUG] handle_message: START. User text: '{message.text}'")
     """Обработка всех сообщений"""
     user_id = message.from_user.id
     user_text = message.text
@@ -226,6 +227,7 @@ def handle_message(message):
             print(f"[VectorMemory] Ошибка при сохранении ответа: {e}")
     
         # Отправляем ответ пользователю
+        print(f"[DEBUG] handle_message: About to send reply: '{ai_response[:50]}...'")
         bot.reply_to(message, ai_response)
     
     except Exception as e:
