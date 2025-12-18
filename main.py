@@ -4,6 +4,17 @@ import telebot
 from datetime import datetime
 from openai import OpenAI
 from flask import Flask, request
+from vector_memory_qdrant import VectorMemoryQdrant
+
+# === НАЧАЛО ПРОВЕРКИ ===
+print("[SYSTEM] Проверка VectorMemoryQdrant...")
+try:
+    test_vm = VectorMemoryQdrant(storage_path="./test_qdrant_storage")
+    print("[SYSTEM] VectorMemoryQdrant инициализирован успешно.")
+except Exception as e:
+    print(f"[SYSTEM] ОШИБКА инициализации VectorMemoryQdrant: {e}")
+    # Если ошибка — останавливаемся и разбираемся. Без этого идти дальше нельзя.
+# === КОНЕЦ ПРОВЕРКИ ===
 
 # ====================== ДЕТЕКТОР ЯЗЫКА ======================
 def detect_language(text):
