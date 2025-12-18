@@ -6,6 +6,9 @@ from openai import OpenAI
 from flask import Flask, request
 from vector_memory_qdrant import VectorMemoryQdrant
 
+print("[SYSTEM] Module main.py is being loaded...")
+print("[SYSTEM] About to define handle_message function...")
+
 # ====================== ДЕТЕКТОР ЯЗЫКА ======================
 def detect_language(text):
     """
