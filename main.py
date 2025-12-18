@@ -180,6 +180,24 @@ def handle_message(message):
         for i, entry in enumerate(history_debug):
             debug_msg += f"  {i}: [{entry['role']}] {entry['text'][:50]}...\n"
         debug_msg += f"\nВсего записей в истории: {len(memory['history'])}"
+
+        # ====== НАЧАЛО ТЕСТА ВЕКТОРНОЙ ПАМЯТИ (только для /debug) ======
+        try:
+            # 1. Сохраняем текущий отладочный текст в векторную память как тестовую запись
+            VECTOR_MEMORY.add_memory(user_id=str(user_id), role="system", text=f"Debug command executed at {datetime.now().isoformat()}. History length: {len(memory['history'])}")
+            
+            # 2. Ищем всё, что есть в векторной памяти для этого пользователя (пустой запрос)
+            vector_results = VECTOR_MEMORY.search_memories(user_id=str(user_id), query="debug", limit=5)
+            debug_msg += f"\n\n--- ВЕКТОРНАЯ ПАМЯТЬ (последние 5 по 'debug') ---\n"
+            if vector_results:
+                for i, mem in enumerate(vector_results):
+                    debug_msg += f"V{i}: {mem[:80]}...\n"
+            else:
+                debug_msg += "Пока ничего не найдено."
+        except Exception as e:
+            debug_msg += f"\n\n[ОШИБКА теста векторной памяти: {e}]"
+        # ====== КОНЕЦ ТЕСТА ======
+        
         bot.reply_to(message, debug_msg)
         return  # Завершаем обработку здесь
     # Определяем язык текущего сообщения, а не берём из памяти
