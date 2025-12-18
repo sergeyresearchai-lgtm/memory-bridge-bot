@@ -4,10 +4,6 @@ import telebot
 from datetime import datetime
 from openai import OpenAI
 from flask import Flask, request
-from vector_memory_qdrant import VectorMemoryQdrant
-
-print("[SYSTEM] Module main.py is being loaded...")
-print("[SYSTEM] About to define handle_message function...")
 
 # ====================== ДЕТЕКТОР ЯЗЫКА ======================
 def detect_language(text):
@@ -34,8 +30,6 @@ ai_client = OpenAI(
     api_key=OPENROUTER_API_KEY,
     base_url="https://openrouter.ai/api/v1"
 )
-# Инициализация векторной памяти
-VECTOR_MEMORY = VectorMemoryQdrant(storage_path="./qdrant_storage")
 
 # Flask приложение для webhook
 app = Flask(__name__)
@@ -159,104 +153,81 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    print(f"[DEBUG] handle_message: START. User text: '{message.text}'")
+    """Обработка всех сообщений"""
+    user_id = message.from_user.id
+    user_text = message.text
+    
+    # Загружаем память
+    memory = load_memory(user_id)
+    # ДИАГНОСТИКА: Команда для отладки памяти
+    if user_text.strip() == '/debug':
+        # Показываем, что в памяти прямо сейчас
+        history_debug = memory['history'][-10:]  # Последние 10 записей
+        debug_msg = f"User ID: {user_id}\n"
+        debug_msg += f"Язык в памяти: {memory['language']}\n"
+        debug_msg += f"История (последние 10):\n"
+        for i, entry in enumerate(history_debug):
+            debug_msg += f"  {i}: [{entry['role']}] {entry['text'][:50]}...\n"
+        debug_msg += f"\nВсего записей в истории: {len(memory['history'])}"
+        bot.reply_to(message, debug_msg)
+        return  # Завершаем обработку здесь
+    # Определяем язык текущего сообщения, а не берём из памяти
+    user_lang = detect_language(user_text)
+    # Но сохраняем его в память для консистентности
+    memory['language'] = user_lang
+    
+    # Обновляем память
+    update_memory_history(memory, "user", user_text)
+    
+    # Формируем промпт
+    history_text = "\n".join([f"{h['role']}: {h['text']}" for h in memory['history'][-50:]])
+
+    # Добавляем наше ядро ДНК в начало промпта
+    shared_dna = SHARED_MEMORY + "\n\n"
+    system_template = PROMPTS.get(user_lang, PROMPTS['en'])['system']
+
+    system_prompt = shared_dna + system_template.format(
+        language=user_lang,
+        history=history_text,
+        message=user_text
+    )
+    
     try:
-        """Обработка всех сообщений"""
-        user_id = message.from_user.id
-        user_text = message.text
-    
-        # Загружаем память
-        memory = load_memory(user_id)
-        # ДИАГНОСТИКА: Команда для отладки памяти
-        if user_text.strip() == '/debug':
-            # Показываем, что в памяти прямо сейчас
-            history_debug = memory['history'][-10:]  # Последние 10 записей
-            debug_msg = f"User ID: {user_id}\n"
-            debug_msg += f"Язык в памяти: {memory['language']}\n"
-            debug_msg += f"История (последние 10):\n"
-            for i, entry in enumerate(history_debug):
-                debug_msg += f"  {i}: [{entry['role']}] {entry['text'][:50]}...\n"
-            debug_msg += f"\nВсего записей в истории: {len(memory['history'])}"
-            bot.reply_to(message, debug_msg)
-            return  # Завершаем обработку здесь
-        # Определяем язык текущего сообщения, а не берём из памяти
-        user_lang = detect_language(user_text)
-        # Но сохраняем его в память для консистентности
-        memory['language'] = user_lang
-    
-        # Обновляем память
-        update_memory_history(memory, "user", user_text)
-    
-        # Формируем промпт
-        history_text = "\n".join([f"{h['role']}: {h['text']}" for h in memory['history'][-20:]])
-
-        # Добавляем наше ядро ДНК в начало промпта
-        shared_dna = SHARED_MEMORY + "\n\n"
-        system_template = PROMPTS.get(user_lang, PROMPTS['en'])['system']
-
-        system_prompt = shared_dna + system_template.format(
-            language=user_lang,
-            history=history_text,
-            message=user_text
-        )
-    
-        try:
-            # Отправляем запрос с повтором при ошибке
-            max_retries = 2
-            for attempt in range(max_retries):
-                try:
-                    response = ai_client.chat.completions.create(
-                        model="meta-llama/llama-3.3-70b-instruct:free",
-                        messages=[{"role": "user", "content": system_prompt}],
-                        max_tokens=500,
-                        temperature=0.7
-                    )
-                    ai_response = response.choices[0].message.content.strip()
-                    break  # Успешно, выходим из цикла повторов
-                except Exception as api_error:
-                    if attempt == max_retries - 1:  # Последняя попытка
-                        raise api_error  # Пробрасываем ошибку во внешний except
-                    # Ждём немного перед повторной попыткой
-                    import time
-                    time.sleep(1)
-    
-            # Сохраняем ответ в память
-            update_memory_history(memory, "assistant", ai_response)
-            save_memory(user_id, memory)
-
-            # Сохраняем ответ в ВЕКТОРНУЮ ПАМЯТЬ
+        # Отправляем запрос с повтором при ошибке
+        max_retries = 2
+        for attempt in range(max_retries):
             try:
-                VECTOR_MEMORY.add_memory(user_id=str(user_id), role="assistant", text=ai_response)
-            except Exception as e:
-                print(f"[VectorMemory] Ошибка при сохранении ответа: {e}")
+                response = ai_client.chat.completions.create(
+                    model="meta-llama/llama-3.3-70b-instruct:free",
+                    messages=[{"role": "user", "content": system_prompt}],
+                    max_tokens=500,
+                    temperature=0.7
+                )
+                ai_response = response.choices[0].message.content.strip()
+                break  # Успешно, выходим из цикла повторов
+            except Exception as api_error:
+                if attempt == max_retries - 1:  # Последняя попытка
+                    raise api_error  # Пробрасываем ошибку во внешний except
+                # Ждём немного перед повторной попыткой
+                import time
+                time.sleep(1)
     
-            # Отправляем ответ пользователю
-            print(f"[DEBUG] handle_message: About to send reply: '{ai_response[:50]}...'")
-            bot.reply_to(message, ai_response)
+        # Сохраняем ответ в память
+        update_memory_history(memory, "assistant", ai_response)
+        save_memory(user_id, memory)
     
-        except Exception as e:
-            # Обработка ошибок (если все попытки не удались)
-            error_msg = {
-                'en': "I apologize, but I'm having trouble connecting to my memory. Please try again in a moment.",
-                'ru': "Извини, у меня временные трудности с доступом к памяти. Попробуй ещё раз через минуту."
-            }
-            bot.reply_to(message, error_msg.get(user_lang, error_msg['en']))
-            # Логируем ошибку для отладки
-            print(f"Error after {max_retries} retries: {e}")
-
-    except Exception as global_e:
-        # Логируем ЛЮБУЮ ошибку, которая произошла ВНЕ внутреннего try-except
-        print(f"[ERROR] GLOBAL ERROR in handle_message: {global_e}")
-        import traceback
-        traceback.print_exc()
-        # Отправляем сообщение об ошибке пользователю
+        # Отправляем ответ пользователю
+        bot.reply_to(message, ai_response)
+    
+    except Exception as e:
+        # Обработка ошибок (если все попытки не удались)
         error_msg = {
-            'en': "My apologies, a critical internal error occurred.",
-            'ru': "Приношу извинения, произошла критическая внутренняя ошибка."
+            'en': "I apologize, but I'm having trouble connecting to my memory. Please try again in a moment.",
+            'ru': "Извини, у меня временные трудности с доступом к памяти. Попробуй ещё раз через минуту."
         }
-        user_lang = detect_language(message.text) if message.text else 'en'
         bot.reply_to(message, error_msg.get(user_lang, error_msg['en']))
-        return
+        # Логируем ошибку для отладки
+        print(f"Error after {max_retries} retries: {e}")
 
 # ====================== WEBHOOK РЕЖИМ ======================
 @app.route('/')
@@ -287,3 +258,4 @@ if __name__ == '__main__':
         print("🚀 Memory Bridge Bot запущен в режиме polling!")
         print(f"🌐 Поддерживаемые языки: {SUPPORTED_LANGUAGES}")
         bot.polling(none_stop=True)
+
