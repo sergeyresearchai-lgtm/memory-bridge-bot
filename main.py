@@ -7,8 +7,9 @@ from flask import Flask, request
 from vector_memory_qdrant import VectorMemoryQdrant
 
 # ====================== ИНИЦИАЛИЗАЦИЯ ВЕКТОРНОЙ ПАМЯТИ ======================
-VECTOR_MEMORY = VectorMemoryQdrant(storage_path="./qdrant_storage")
-print("[SYSTEM] Глобальная векторная память инициализирована.")
+# VECTOR_MEMORY = VectorMemoryQdrant(storage_path="./qdrant_storage")  # Отключено для стабильности Render
+VECTOR_MEMORY = None
+print("[SYSTEM] Режим Render: векторная память отключена.")
 # ===========================================================================
 
 # ====================== ДЕТЕКТОР ЯЗЫКА ======================
