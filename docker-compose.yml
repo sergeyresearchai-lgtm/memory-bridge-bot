@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: memory-bridge-bot
+    restart: unless-stopped
+    ports:
+      - "80:10000"
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - USE_VECTOR_MEMORY=True
+    depends_on:
+      - qdrant
+    volumes:
+      - ./user_memory:/app/user_memory
+      - ./qdrant_storage:/app/qdrant_storage
+    command: python main.py
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: memory-bridge-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./qdrant_data:/qdrant/storage
