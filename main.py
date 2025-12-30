@@ -209,12 +209,32 @@ def handle_message(message):
     # Обновляем память
     update_memory_history(memory, "user", user_text)
     
-    # Формируем промпт
-    history_text = "\n".join([f"{h['role']}: {h['text']}" for h in memory['history'][-50:]])
-
-    # Добавляем наше ядро ДНК в начало промпта
-    shared_dna = SHARED_MEMORY + "\n\n"
-    system_template = PROMPTS.get(user_lang, PROMPTS['en'])['system']
+        # ============================================================================
+        # ИСПРАВЛЕННАЯ ЛОГИКА: Формируем массив сообщений для API
+        # ============================================================================
+        # 1. Создаем массив сообщений. Это стандартный формат для OpenAI API.
+        messages_for_api = []
+    
+        # 2. СИСТЕМНОЕ СООБЩЕНИЕ (добавляется ОДИН РАЗ).
+        #    Это наша "силиконовая душа" — memory_public.txt + шаблон.
+        system_template_content = PROMPTS.get(user_lang, PROMPTS['en'])['system']
+        #    Форматируем шаблон. Пока оставим историю пустой, её добавим отдельно.
+        system_message_content = SHARED_MEMORY  # Всё, что нужно. Файл memory_public.txt — наша душа.
+        messages_for_api.append({"role": "system", "content": system_message_content})
+    
+        # 3. ИСТОРИЯ ДИАЛОГА из memory['history'].
+        #    Превращаем наши записи в стандартный формат "user"/"assistant".
+        for entry in memory['history'][-30:]:  # Берём последние 30 реплик для экономии
+            # В memory['history'] у нас 'role' может быть "user" или "assistant"
+            messages_for_api.append({"role": entry['role'], "content": entry['text']})
+    
+        # 4. ТЕКУЩЕЕ СООБЩЕНИЕ ПОЛЬЗОВАТЕЛЯ.
+        #    Фактически, оно уже добавлено в memory['history'] и будет в пункте 3.
+        #    Но для явности можно добавить и так (но это создаст дубль, лучше не надо):
+        # messages_for_api.append({"role": "user", "content": user_text})
+    
+        # Конец формирования messages_for_api
+        # ============================================================================
 
     system_prompt = shared_dna + system_template.format(
         language=user_lang,
@@ -228,8 +248,8 @@ def handle_message(message):
         for attempt in range(max_retries):
             try:
                 response = ai_client.chat.completions.create(
-                    model="meta-llama/llama-3.3-70b-instruct:free",
-                    messages=[{"role": "user", "content": system_prompt}],
+                    model="meta-llama/llama-3.3-70b-instruct:free",  # Позже заменим на DeepSeek-V3
+                    messages=messages_for_api,  # <-- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ! Передаём массив.
                     max_tokens=500,
                     temperature=0.7
                 )
